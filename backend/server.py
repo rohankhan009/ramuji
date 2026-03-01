@@ -282,13 +282,38 @@ async def process_telegram_update(update: dict, bot_token: str):
         )
         return
     
-    # Handle /aadhaar command - Start Aadhaar flow
+    # Handle /aadhaar command - Start Aadhaar flow (auto-login with saved credentials)
     if text == "/aadhaar":
-        user_aadhaar_state[chat_id] = {"step": "awaiting_mobile", "bot_token": bot_token}
+        user_aadhaar_state[chat_id] = {
+            "step": "logging_in", 
+            "bot_token": bot_token,
+            "mobile": DEFAULT_UMANG_MOBILE,
+            "mpin": DEFAULT_UMANG_MPIN
+        }
         await send_telegram_message(bot_token, chat_id, 
             "🆔 Aadhaar Download Service\n\n"
-            "📱 Enter your Umang registered Mobile Number:"
+            "⏳ Auto-logging into Umang..."
         )
+        
+        # Auto login with saved credentials
+        session = await get_or_create_session(chat_id)
+        result = await session.login_umang(DEFAULT_UMANG_MOBILE, DEFAULT_UMANG_MPIN)
+        
+        if result.get("success"):
+            user_aadhaar_state[chat_id]["step"] = "awaiting_name"
+            await send_telegram_message(bot_token, chat_id, 
+                "✅ Login successful!\n\n"
+                "👤 Enter the NAME (as per Aadhaar):"
+            )
+        else:
+            if result.get("screenshot"):
+                await send_telegram_photo(bot_token, chat_id, result["screenshot"], "Login page screenshot")
+            await send_telegram_message(bot_token, chat_id, 
+                f"❌ Login failed: {result.get('message', 'Unknown error')}\n\nSend /aadhaar to try again."
+            )
+            await cleanup_session(chat_id)
+            if chat_id in user_aadhaar_state:
+                del user_aadhaar_state[chat_id]
         return
     
     # Handle /cancel command
