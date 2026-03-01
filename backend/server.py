@@ -381,7 +381,22 @@ async def update_settings(settings: BotSettingsUpdate):
     telegram_bot_running = False
     if telegram_polling_task:
         telegram_polling_task.cancel()
+        try:
+            await telegram_polling_task
+        except asyncio.CancelledError:
+            pass
         telegram_polling_task = None
+    
+    # Validate token if provided
+    if settings.bot_token:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as http_client:
+                response = await http_client.get(f"https://api.telegram.org/bot{settings.bot_token}/getMe")
+                data = response.json()
+                if not data.get("ok"):
+                    raise HTTPException(status_code=400, detail=f"Invalid bot token: {data.get('description', 'Unknown error')}")
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=400, detail=f"Failed to validate token: {str(e)}")
     
     # Save settings
     doc = {
@@ -392,11 +407,31 @@ async def update_settings(settings: BotSettingsUpdate):
     await db.bot_settings.update_one({}, {"$set": doc}, upsert=True)
     
     # Start bot if token is set
+    bot_started = False
     if settings.bot_token:
         telegram_bot_running = True
         telegram_polling_task = asyncio.create_task(handle_telegram_updates())
+        bot_started = True
     
-    return {"message": "Settings updated", "bot_started": bool(settings.bot_token)}
+    return {"message": "Settings updated", "bot_started": bot_started}
+
+@api_router.post("/validate-token")
+async def validate_token(token: str = Form(...)):
+    """Validate a telegram bot token"""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as http_client:
+            response = await http_client.get(f"https://api.telegram.org/bot{token}/getMe")
+            data = response.json()
+            if data.get("ok"):
+                return {
+                    "valid": True,
+                    "bot_name": data["result"].get("first_name", ""),
+                    "bot_username": data["result"].get("username", "")
+                }
+            else:
+                return {"valid": False, "error": data.get("description", "Unknown error")}
+    except Exception as e:
+        return {"valid": False, "error": str(e)}
 
 @api_router.get("/status")
 async def get_bot_status():
