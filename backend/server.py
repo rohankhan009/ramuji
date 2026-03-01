@@ -46,6 +46,13 @@ class BotSettingsUpdate(BaseModel):
     bot_token: str
     chat_id: str
 
+class UmangCredentials(BaseModel):
+    mobile: str
+    mpin: str
+
+# User session states for Aadhaar flow
+user_aadhaar_state: Dict[int, Dict[str, Any]] = {}
+
 class CrackAttempt(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
