@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: aadhaar-mongo
+    restart: always
+    volumes:
+      - mongodb_data:/data/db
+    ports:
+      - "27017:27017"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: aadhaar-bot
+    restart: always
+    depends_on:
+      - mongodb
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017
+      - DB_NAME=pdf_cracker
+      - UMANG_MOBILE=9503939471
+      - UMANG_MPIN=989162
+    ports:
+      - "8001:8001"
+
+volumes:
+  mongodb_data:
