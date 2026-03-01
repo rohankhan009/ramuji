@@ -6,7 +6,7 @@ import os
 import logging
 from pathlib import Path
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 import uuid
 from datetime import datetime, timezone
 import pikepdf
@@ -14,6 +14,8 @@ import asyncio
 import httpx
 import tempfile
 import shutil
+import base64
+from aadhaar_automation import get_or_create_session, cleanup_session, AadhaarAutomation
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
