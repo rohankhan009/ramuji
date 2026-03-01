@@ -1,0 +1,101 @@
+{
+  "identity": {
+    "name": "The Phantom Operator",
+    "archetype": "Electric & Neon (Cyberpunk/Security)",
+    "vibe": "Tactical, High-Contrast, Data-Dense, Terminal-Inspired",
+    "description": "A utilitarian, high-precision interface designed for the night shift. It rejects soft shadows and rounded corners in favor of sharp lines, visible grids, and monospaced typography. It feels like a tool, not a toy."
+  },
+  "typography": {
+    "primary_font": "JetBrains Mono",
+    "secondary_font": "Fira Code",
+    "heading_font": "JetBrains Mono",
+    "body_font": "JetBrains Mono",
+    "scale": {
+      "h1": "text-4xl font-bold tracking-tighter uppercase",
+      "h2": "text-2xl font-bold tracking-tight uppercase",
+      "h3": "text-xl font-medium tracking-normal",
+      "body": "text-sm leading-relaxed",
+      "mono": "font-mono text-xs tracking-wide"
+    }
+  },
+  "colors": {
+    "palette_name": "Terminal Velocity",
+    "background": "#050505",
+    "foreground": "#00ff41",
+    "primary": "#00ff41",
+    "secondary": "#1a1a1a",
+    "accent": "#facc15",
+    "destructive": "#ff3b30",
+    "border": "#333333",
+    "muted": "#525252",
+    "card_background": "#0a0a0a"
+  },
+  "visual_enhancers": {
+    "border_radius": "0px",
+    "shadows": "none",
+    "glassmorphism": "none",
+    "textures": [
+      "scanlines",
+      "noise-overlay",
+      "grid-background"
+    ],
+    "animations": [
+      "cursor-blink",
+      "text-glitch",
+      "scanline-sweep"
+    ]
+  },
+  "layout": {
+    "grid_system": "The Technical Grid (Visible Borders)",
+    "spacing": "Comfy but dense",
+    "container_width": "max-w-7xl",
+    "alignment": "left-aligned"
+  },
+  "components": {
+    "Card": {
+      "style": "border border-border bg-card/50 backdrop-blur-sm rounded-none",
+      "header": "border-b border-border p-4 uppercase text-xs tracking-widest text-muted-foreground",
+      "content": "p-6"
+    },
+    "Button": {
+      "base": "rounded-none uppercase tracking-widest font-bold border border-primary text-primary bg-transparent hover:bg-primary hover:text-black transition-all duration-75",
+      "primary": "border-primary text-primary hover:bg-primary hover:text-black",
+      "secondary": "border-muted text-muted-foreground hover:border-foreground hover:text-foreground",
+      "destructive": "border-destructive text-destructive hover:bg-destructive hover:text-white"
+    },
+    "Input": {
+      "style": "rounded-none bg-black border-b border-border focus:border-primary focus:ring-0 px-0 py-2 font-mono text-sm placeholder:text-muted-foreground/50 transition-colors"
+    },
+    "Badge": {
+      "style": "rounded-none border border-current bg-transparent px-2 py-0.5 text-xs font-mono uppercase"
+    }
+  },
+  "instructions_to_main_agent": {
+    "theme_setup": [
+      "Enforce DARK MODE by default. Do not allow light mode toggle.",
+      "Install 'JetBrains Mono' via Google Fonts.",
+      "Override Tailwind config to use '0px' for all border radius variables."
+    ],
+    "global_css_rules": [
+      "Add a 'scanline' overlay using pointer-events-none fixed div.",
+      "Set body background to #050505.",
+      "Use ::selection { bg: #00ff41; color: black; }."
+    ],
+    "component_overrides": [
+      "Strip all rounded classes from Shadcn components.",
+      "Replace shadows with 1px borders.",
+      "Use 'sonner' for toast notifications with a terminal style."
+    ]
+  },
+  "image_urls": {
+    "hero_background": "",
+    "logos": []
+  },
+  "universal_guidelines": [
+    "Always use 'data-testid' for interactive elements.",
+    "Do not use gradients for backgrounds; use solid colors or subtle noise.",
+    "Ensure 3:1 contrast ratio for all text.",
+    "Use 'lucide-react' for icons (Terminal, Shield, Activity, Settings, Lock).",
+    "Mobile Responsiveness: Stack grids to single column, keep touch targets large (>44px)."
+  ]
+}
