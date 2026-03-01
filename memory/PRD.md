@@ -1,80 +1,79 @@
-# PDF Password Cracker - PRD
+# PDF Cracker + Aadhaar Bot - PRD
 
-## Original Problem Statement
-User wants a Telegram bot for PDF password cracking with:
-- Password format: NAME (first 4 letters CAPS) + YEAR (1900-2026)
-- Example: ROHI2006 for name "Rohit" born in 2006
-- Admin Dashboard with edit options for bot token and chat ID
+## Problem Statement
+Telegram bot for:
+1. PDF password cracking (NAME + YEAR format: ROHI2006)
+2. Aadhaar PDF download via Umang + MyAadhaar automation
 
 ## User Personas
-- Individual user needing PDF password recovery using name+birth year combinations
+- User who forgot PDF password
+- User who needs to download Aadhaar with auto password crack
 
-## Core Requirements (Static)
-1. Telegram Bot Integration
-   - Accept PDF files
-   - Accept name input
-   - Try password combinations automatically
-   - Send notifications on success/failure
+## Core Features
 
-2. Admin Dashboard
-   - Bot token management
-   - Chat ID configuration
-   - Manual PDF cracking
-   - History/logs view
+### 1. PDF Password Cracker ✅
+- Upload PDF to Telegram
+- Enter name
+- Bot tries NAME(4 caps) + YEAR (1900-2026)
+- Returns cracked password
 
-3. Password Format
-   - First 4 letters of name (UPPERCASE)
-   - Year from 1900 to 2026
-   - Total: 127 combinations per name
+### 2. Aadhaar Automation ✅
+- Auto login to Umang (credentials saved)
+- Get Enrollment ID (EID)
+- Go to MyAadhaar
+- Fill form + solve CAPTCHA
+- Enter OTP
+- Download PDF + crack password
 
 ## Tech Stack
-- Frontend: React with Tailwind CSS
 - Backend: FastAPI (Python)
 - Database: MongoDB
-- PDF Library: pikepdf
-- Telegram: httpx (HTTP calls to Telegram API)
+- Automation: Playwright
+- PDF: pikepdf
+- Bot: Telegram Bot API (httpx)
 
-## What's Been Implemented (Jan 2026)
-- [x] Admin Dashboard with dark hacker theme
-- [x] Bot token & Chat ID settings management
-- [x] Manual PDF crack from dashboard
-- [x] Telegram bot polling for messages
-- [x] PDF password cracking with pikepdf
-- [x] Crack history with status tracking
-- [x] Telegram notifications on crack complete
-- [x] All 4 tabs: STATUS, SETTINGS, MANUAL CRACK, HISTORY
+## Files Created
+- `/app/backend/server.py` - Main API + Telegram bot
+- `/app/backend/aadhaar_automation.py` - Umang/MyAadhaar automation
+- `/app/backend/Dockerfile` - Docker deployment
+- `/app/docker-compose.yml` - Full stack deployment
+- `/app/DEPLOYMENT.md` - Deployment guide
+- `/app/frontend/` - Admin dashboard
 
-## API Endpoints
-- GET /api/settings - Get bot configuration
-- POST /api/settings - Update bot configuration
-- GET /api/status - Get bot running status
-- GET /api/attempts - Get crack history
-- POST /api/crack - Manual crack (file upload)
-- POST /api/bot/start - Start bot polling
-- POST /api/bot/stop - Stop bot polling
+## Bot Commands
+| Command | Description |
+|---------|-------------|
+| /start | Menu |
+| /aadhaar | Start Aadhaar download |
+| /status | Recent attempts |
+| /cancel | Cancel operation |
 
-## Telegram Bot Commands
-- /start - Welcome message
-- /status - Recent crack attempts
-- Send PDF → Bot asks for name → Starts cracking
+## Aadhaar Flow
+1. /aadhaar → Auto Umang login
+2. Enter NAME → Navigate to EID page
+3. Solve CAPTCHA → Get EID
+4. Enter date/time → Go to MyAadhaar
+5. Solve CAPTCHA → Send OTP
+6. Enter OTP → Download PDF
+7. Auto crack password → Send PDF + Password
 
-## Prioritized Backlog
-### P0 (Done)
-- Core cracking functionality
-- Admin dashboard
-- Telegram integration
+## Deployment Notes
+- **REQUIRES INDIAN SERVER** - Umang/MyAadhaar block non-Indian IPs
+- Recommended: DigitalOcean Mumbai, AWS Mumbai, Hostinger India
 
-### P1 (Future)
-- Add lowercase password variants (rohi2006)
-- Add full name support (ROHIT2006)
-- Progress bar in dashboard
+## Current Status (Jan 2026)
+- [x] PDF Cracker working
+- [x] Telegram bot working
+- [x] Aadhaar automation code ready
+- [x] Deployment files ready
+- [ ] Needs Indian VPS to work (CloudFront blocks)
 
-### P2 (Future)
-- Multiple PDF batch processing
-- Custom year range selection
-- Export crack history
+## Default Credentials
+- Umang Mobile: 9503939471
+- Umang MPIN: 989162
+(Change in .env or server.py)
 
-## Next Tasks
-1. Get Telegram Bot Token from @BotFather
-2. Configure token in Settings
-3. Start using bot!
+## Next Steps
+1. Deploy on Indian VPS
+2. Test Aadhaar flow end-to-end
+3. Fine-tune selectors if needed
