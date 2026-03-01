@@ -347,8 +347,8 @@ async def process_telegram_update(update: dict, bot_token: str):
                     )
                     await db.crack_attempts.insert_one(attempt.model_dump())
                     
-                    # Start cracking
-                    asyncio.create_task(crack_pdf(local_path, name, attempt.id))
+                    # Start cracking with chat_id and bot_token for direct notification
+                    asyncio.create_task(crack_pdf(local_path, name, attempt.id, chat_id, bot_token))
                     
                     # Remove pending file
                     await db.pending_files.delete_one({"chat_id": chat_id})
