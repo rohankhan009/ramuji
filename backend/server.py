@@ -394,6 +394,222 @@ async def process_telegram_update(update: dict, bot_token: str):
                 "📤 Please send a PDF file first, or use /aadhaar to download Aadhaar."
             )
 
+async def handle_aadhaar_flow(chat_id: int, text: str, bot_token: str):
+    """Handle Aadhaar download multi-step flow"""
+    state = user_aadhaar_state.get(chat_id, {})
+    step = state.get("step", "")
+    
+    try:
+        if step == "awaiting_mobile":
+            # User sent mobile number
+            mobile = text.strip()
+            if not mobile.isdigit() or len(mobile) != 10:
+                await send_telegram_message(bot_token, chat_id, "❌ Please enter a valid 10-digit mobile number:")
+                return
+            
+            user_aadhaar_state[chat_id]["mobile"] = mobile
+            user_aadhaar_state[chat_id]["step"] = "awaiting_mpin"
+            await send_telegram_message(bot_token, chat_id, "🔐 Enter your Umang MPIN:")
+        
+        elif step == "awaiting_mpin":
+            # User sent MPIN
+            mpin = text.strip()
+            user_aadhaar_state[chat_id]["mpin"] = mpin
+            user_aadhaar_state[chat_id]["step"] = "logging_in"
+            
+            await send_telegram_message(bot_token, chat_id, "⏳ Logging into Umang...")
+            
+            # Start automation
+            session = await get_or_create_session(chat_id)
+            mobile = user_aadhaar_state[chat_id]["mobile"]
+            
+            result = await session.login_umang(mobile, mpin)
+            
+            if result.get("success"):
+                user_aadhaar_state[chat_id]["step"] = "awaiting_name"
+                await send_telegram_message(bot_token, chat_id, 
+                    "✅ Login successful!\n\n"
+                    "👤 Enter the NAME (as per Aadhaar):"
+                )
+            else:
+                # Send screenshot if available
+                if result.get("screenshot"):
+                    await send_telegram_photo(bot_token, chat_id, result["screenshot"], "Login page screenshot")
+                await send_telegram_message(bot_token, chat_id, 
+                    f"❌ Login failed: {result.get('message', 'Unknown error')}\n\nSend /aadhaar to try again."
+                )
+                await cleanup_session(chat_id)
+                del user_aadhaar_state[chat_id]
+        
+        elif step == "awaiting_name":
+            # User sent name
+            name = text.strip()
+            user_aadhaar_state[chat_id]["name"] = name
+            user_aadhaar_state[chat_id]["step"] = "navigating"
+            
+            await send_telegram_message(bot_token, chat_id, "⏳ Navigating to EID retrieval page...")
+            
+            session = await get_or_create_session(chat_id)
+            
+            # Navigate to EID page
+            nav_result = await session.navigate_to_eid_retrieval()
+            
+            if nav_result.get("success"):
+                # Fill form and get CAPTCHA
+                mobile = user_aadhaar_state[chat_id]["mobile"]
+                form_result = await session.fill_eid_form_and_get_captcha(name, mobile)
+                
+                if form_result.get("success") and form_result.get("captcha_image"):
+                    user_aadhaar_state[chat_id]["step"] = "awaiting_captcha"
+                    # Send CAPTCHA image
+                    await send_telegram_photo(bot_token, chat_id, form_result["captcha_image"], "🔡 Enter the CAPTCHA text:")
+                else:
+                    if form_result.get("screenshot"):
+                        await send_telegram_photo(bot_token, chat_id, form_result["screenshot"], "Current page")
+                    await send_telegram_message(bot_token, chat_id, 
+                        f"❌ Could not get CAPTCHA: {form_result.get('message', 'Unknown error')}"
+                    )
+            else:
+                await send_telegram_message(bot_token, chat_id, 
+                    f"❌ Navigation failed: {nav_result.get('message', 'Unknown error')}"
+                )
+        
+        elif step == "awaiting_captcha":
+            # User sent CAPTCHA text
+            captcha = text.strip()
+            user_aadhaar_state[chat_id]["step"] = "submitting_captcha"
+            
+            await send_telegram_message(bot_token, chat_id, "⏳ Submitting CAPTCHA...")
+            
+            session = await get_or_create_session(chat_id)
+            result = await session.submit_captcha_and_get_eid(captcha)
+            
+            if result.get("success") and result.get("eid"):
+                eid = result["eid"]
+                user_aadhaar_state[chat_id]["eid"] = eid
+                user_aadhaar_state[chat_id]["step"] = "downloading_aadhaar"
+                
+                await send_telegram_message(bot_token, chat_id, 
+                    f"✅ Enrollment ID: {eid}\n\n⏳ Now downloading Aadhaar from UIDAI..."
+                )
+                
+                # Go to UIDAI download
+                download_result = await session.download_aadhaar(eid)
+                
+                if download_result.get("step") == "captcha_required":
+                    user_aadhaar_state[chat_id]["step"] = "awaiting_uidai_captcha"
+                    await send_telegram_photo(bot_token, chat_id, download_result["captcha_image"], "🔡 UIDAI CAPTCHA:")
+                elif download_result.get("step") == "ready_for_otp":
+                    user_aadhaar_state[chat_id]["step"] = "requesting_otp"
+                    otp_result = await session.request_otp()
+                    user_aadhaar_state[chat_id]["step"] = "awaiting_otp"
+                    await send_telegram_message(bot_token, chat_id, 
+                        "📱 OTP sent to your registered mobile!\n\nEnter the OTP:"
+                    )
+            else:
+                if result.get("screenshot"):
+                    await send_telegram_photo(bot_token, chat_id, result["screenshot"], "Result page")
+                await send_telegram_message(bot_token, chat_id, 
+                    f"❌ Could not get EID: {result.get('message', 'Unknown error')}\n\n"
+                    "Try /aadhaar again with correct details."
+                )
+                await cleanup_session(chat_id)
+                del user_aadhaar_state[chat_id]
+        
+        elif step == "awaiting_otp":
+            # User sent OTP
+            otp = text.strip()
+            user_aadhaar_state[chat_id]["step"] = "downloading"
+            
+            await send_telegram_message(bot_token, chat_id, "⏳ Verifying OTP and downloading Aadhaar...")
+            
+            session = await get_or_create_session(chat_id)
+            result = await session.submit_otp_and_download(otp)
+            
+            if result.get("success") and result.get("file_path"):
+                file_path = result["file_path"]
+                name = user_aadhaar_state[chat_id].get("name", "Unknown")
+                
+                await send_telegram_message(bot_token, chat_id, "⏳ Cracking PDF password...")
+                
+                # Crack the password
+                passwords = generate_passwords(name)
+                found_password = None
+                
+                for password in passwords:
+                    try:
+                        with pikepdf.open(file_path, password=password) as pdf:
+                            found_password = password
+                            break
+                    except pikepdf.PasswordError:
+                        continue
+                
+                if found_password:
+                    # Send the PDF file with password
+                    await send_telegram_document(bot_token, chat_id, file_path, 
+                        f"✅ Aadhaar Downloaded!\n\n🔑 Password: {found_password}"
+                    )
+                else:
+                    await send_telegram_document(bot_token, chat_id, file_path, 
+                        "✅ Aadhaar Downloaded!\n\n❌ Could not crack password automatically."
+                    )
+                
+                # Cleanup
+                await cleanup_session(chat_id)
+                del user_aadhaar_state[chat_id]
+            else:
+                await send_telegram_message(bot_token, chat_id, 
+                    f"❌ Download failed: {result.get('message', 'Unknown error')}\n\nTry /aadhaar again."
+                )
+                await cleanup_session(chat_id)
+                del user_aadhaar_state[chat_id]
+        
+        else:
+            # Unknown step, reset
+            await send_telegram_message(bot_token, chat_id, "❌ Something went wrong. Send /aadhaar to start again.")
+            if chat_id in user_aadhaar_state:
+                await cleanup_session(chat_id)
+                del user_aadhaar_state[chat_id]
+    
+    except Exception as e:
+        logging.error(f"Aadhaar flow error: {e}")
+        await send_telegram_message(bot_token, chat_id, f"❌ Error: {str(e)}\n\nSend /aadhaar to try again.")
+        if chat_id in user_aadhaar_state:
+            await cleanup_session(chat_id)
+            del user_aadhaar_state[chat_id]
+
+async def send_telegram_photo(bot_token: str, chat_id: int, photo_base64: str, caption: str = ""):
+    """Send photo via telegram bot"""
+    try:
+        photo_bytes = base64.b64decode(photo_base64)
+        async with httpx.AsyncClient() as client:
+            files = {"photo": ("image.png", photo_bytes, "image/png")}
+            data = {"chat_id": chat_id, "caption": caption}
+            await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendPhoto",
+                files=files,
+                data=data
+            )
+    except Exception as e:
+        logging.error(f"Failed to send photo: {e}")
+
+async def send_telegram_document(bot_token: str, chat_id: int, file_path: str, caption: str = ""):
+    """Send document via telegram bot"""
+    try:
+        with open(file_path, "rb") as f:
+            file_content = f.read()
+        
+        async with httpx.AsyncClient() as client:
+            files = {"document": ("aadhaar.pdf", file_content, "application/pdf")}
+            data = {"chat_id": chat_id, "caption": caption}
+            await client.post(
+                f"https://api.telegram.org/bot{bot_token}/sendDocument",
+                files=files,
+                data=data
+            )
+    except Exception as e:
+        logging.error(f"Failed to send document: {e}")
+
 async def send_telegram_message(bot_token: str, chat_id: int, text: str):
     """Send message via telegram bot"""
     try:
