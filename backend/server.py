@@ -72,7 +72,7 @@ def generate_passwords(name: str) -> List[str]:
     return passwords
 
 # PDF cracking function
-async def crack_pdf(file_path: str, name: str, attempt_id: str):
+async def crack_pdf(file_path: str, name: str, attempt_id: str, chat_id: int = None, bot_token: str = None):
     """Try to crack PDF password using name+year combinations"""
     passwords = generate_passwords(name)
     total = len(passwords)
@@ -80,7 +80,7 @@ async def crack_pdf(file_path: str, name: str, attempt_id: str):
     # Update attempt with total
     await db.crack_attempts.update_one(
         {"id": attempt_id},
-        {"$set": {"total_attempts": total, "status": "cracking"}}
+        {"$set": {"total_attempts": total, "status": "cracking", "chat_id": chat_id}}
     )
     
     found_password = None
@@ -106,6 +106,9 @@ async def crack_pdf(file_path: str, name: str, attempt_id: str):
                 {"$set": {"attempts_tried": attempts_tried}}
             )
     
+    # Get attempt details for notification
+    attempt = await db.crack_attempts.find_one({"id": attempt_id}, {"_id": 0})
+    
     # Update final status
     if found_password:
         await db.crack_attempts.update_one(
@@ -117,8 +120,12 @@ async def crack_pdf(file_path: str, name: str, attempt_id: str):
                 "completed_at": datetime.now(timezone.utc).isoformat()
             }}
         )
-        # Send telegram notification if configured
-        await send_telegram_notification(attempt_id, found_password)
+        # Send telegram notification directly to the chat
+        if chat_id and bot_token:
+            message = f"✅ PDF CRACKED!\n\n📄 File: {attempt['filename']}\n👤 Name: {attempt['name_used']}\n🔑 Password: {found_password}\n📊 Attempts: {attempts_tried}/{total}"
+            await send_telegram_message(bot_token, chat_id, message)
+        else:
+            await send_telegram_notification(attempt_id, found_password)
     else:
         await db.crack_attempts.update_one(
             {"id": attempt_id},
@@ -128,7 +135,11 @@ async def crack_pdf(file_path: str, name: str, attempt_id: str):
                 "completed_at": datetime.now(timezone.utc).isoformat()
             }}
         )
-        await send_telegram_notification(attempt_id, None)
+        if chat_id and bot_token:
+            message = f"❌ CRACK FAILED\n\n📄 File: {attempt['filename']}\n👤 Name: {attempt['name_used']}\n📊 Tried: {attempts_tried}/{total} combinations\n\nPassword not in NAME+YEAR format"
+            await send_telegram_message(bot_token, chat_id, message)
+        else:
+            await send_telegram_notification(attempt_id, None)
     
     # Cleanup temp file
     try:
