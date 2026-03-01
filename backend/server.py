@@ -168,12 +168,31 @@ async def send_telegram_notification(attempt_id: str, password: Optional[str]):
 # Telegram bot polling handler
 async def handle_telegram_updates():
     """Poll for telegram updates and handle messages"""
+    global telegram_bot_running
+    
     settings = await db.bot_settings.find_one({}, {"_id": 0})
     if not settings or not settings.get("bot_token"):
+        telegram_bot_running = False
         return
     
     bot_token = settings["bot_token"]
     last_update_id = 0
+    error_count = 0
+    
+    # First validate the token
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as http_client:
+            response = await http_client.get(f"https://api.telegram.org/bot{bot_token}/getMe")
+            data = response.json()
+            if not data.get("ok"):
+                logging.error(f"Invalid bot token: {data.get('description', 'Unknown error')}")
+                telegram_bot_running = False
+                return
+            logging.info(f"Bot connected: @{data['result'].get('username', 'unknown')}")
+    except Exception as e:
+        logging.error(f"Failed to validate bot token: {e}")
+        telegram_bot_running = False
+        return
     
     while telegram_bot_running:
         try:
@@ -184,12 +203,32 @@ async def handle_telegram_updates():
                 )
                 data = response.json()
                 
-                if data.get("ok") and data.get("result"):
+                if not data.get("ok"):
+                    error_count += 1
+                    logging.error(f"Telegram API error: {data.get('description', 'Unknown')}")
+                    if error_count >= 5:
+                        logging.error("Too many errors, stopping bot")
+                        telegram_bot_running = False
+                        break
+                    await asyncio.sleep(5)
+                    continue
+                
+                error_count = 0  # Reset on success
+                
+                if data.get("result"):
                     for update in data["result"]:
                         last_update_id = update["update_id"]
                         await process_telegram_update(update, bot_token)
+        except asyncio.CancelledError:
+            logging.info("Bot polling cancelled")
+            break
         except Exception as e:
             logging.error(f"Error polling telegram: {e}")
+            error_count += 1
+            if error_count >= 5:
+                logging.error("Too many errors, stopping bot")
+                telegram_bot_running = False
+                break
             await asyncio.sleep(5)
 
 async def process_telegram_update(update: dict, bot_token: str):
