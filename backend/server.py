@@ -53,6 +53,10 @@ class UmangCredentials(BaseModel):
 # User session states for Aadhaar flow
 user_aadhaar_state: Dict[int, Dict[str, Any]] = {}
 
+# Default Umang credentials (hardcoded)
+DEFAULT_UMANG_MOBILE = "9503939471"
+DEFAULT_UMANG_MPIN = "989162"
+
 class CrackAttempt(BaseModel):
     model_config = ConfigDict(extra="ignore")
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
