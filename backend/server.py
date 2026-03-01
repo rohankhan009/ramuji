@@ -261,15 +261,39 @@ async def process_telegram_update(update: dict, bot_token: str):
     if not chat_id:
         return
     
+    # Check if user is in Aadhaar flow
+    if chat_id in user_aadhaar_state:
+        await handle_aadhaar_flow(chat_id, text, bot_token)
+        return
+    
     # Handle /start command
     if text == "/start":
         await send_telegram_message(bot_token, chat_id, 
-            "🔓 PDF Password Cracker Bot\n\n"
-            "📤 Send me a PDF file with the name to try.\n"
-            "Format: Send PDF, then reply with name\n\n"
-            "Example: If name is 'Rohit' born in 2006\n"
-            "Password tried: ROHI2006, ROHI2005, etc."
+            "🔓 PDF Password Cracker & Aadhaar Bot\n\n"
+            "📋 Commands:\n"
+            "/crack - Crack PDF password (manual)\n"
+            "/aadhaar - Download Aadhaar PDF\n"
+            "/status - Check recent attempts\n\n"
+            "📤 Or just send a PDF file to crack password!"
         )
+        return
+    
+    # Handle /aadhaar command - Start Aadhaar flow
+    if text == "/aadhaar":
+        user_aadhaar_state[chat_id] = {"step": "awaiting_mobile", "bot_token": bot_token}
+        await send_telegram_message(bot_token, chat_id, 
+            "🆔 Aadhaar Download Service\n\n"
+            "📱 Enter your Umang registered Mobile Number:"
+        )
+        return
+    
+    # Handle /cancel command
+    if text == "/cancel":
+        if chat_id in user_aadhaar_state:
+            await cleanup_session(chat_id)
+            del user_aadhaar_state[chat_id]
+        await db.pending_files.delete_one({"chat_id": chat_id})
+        await send_telegram_message(bot_token, chat_id, "❌ Cancelled. Send /start to begin again.")
         return
     
     # Handle /status command
@@ -367,7 +391,7 @@ async def process_telegram_update(update: dict, bot_token: str):
                 await send_telegram_message(bot_token, chat_id, f"❌ Error downloading file: {str(e)}")
         else:
             await send_telegram_message(bot_token, chat_id, 
-                "📤 Please send a PDF file first, then I'll ask for the name."
+                "📤 Please send a PDF file first, or use /aadhaar to download Aadhaar."
             )
 
 async def send_telegram_message(bot_token: str, chat_id: int, text: str):
